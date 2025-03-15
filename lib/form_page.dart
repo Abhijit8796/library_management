@@ -1,15 +1,15 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class FormPage extends StatefulWidget {
   final String branchName;
-  final String branchId;
+  final int branchId;
 
   const FormPage({Key? key, required this.branchName, required this.branchId})
-      : super(key: key);
+    : super(key: key);
 
   @override
   _FormPageState createState() => _FormPageState();
@@ -17,7 +17,11 @@ class FormPage extends StatefulWidget {
 
 class _FormPageState extends State<FormPage> {
   final _formKey = GlobalKey<FormState>();
+  String? _name;
+  String? _mobile;
   String _seatType = 'reserved';
+  int? _seatNumber;
+  double? _paymentAmount;
   DateTime? _startDate;
   DateTime? _endDate;
   File? _image;
@@ -37,61 +41,56 @@ class _FormPageState extends State<FormPage> {
     }
   }
 
-  Future<String> _uploadImage(File image, String path) async {
-    print('Inside upload image');
-    final storageRef = FirebaseStorage.instance.ref().child(path);
-    final uploadTask = storageRef.putFile(image);
-    print('Upload task triggered');
-    try {
-      final snapshot = await uploadTask.whenComplete(() => {});
-      if (snapshot.state == TaskState.success) {
-        print('Image uploaded');
-        return await snapshot.ref.getDownloadURL();
-      } else {
-        print('Image upload failed with state: ${snapshot.state}');
-        throw Exception('Image upload failed');
-      }
-    } catch (e) {
-      print('Error during image upload: $e');
-      throw Exception('Image upload failed: $e');
-    }
+  Future<String> _uploadImage(File image, String bucket, String path) async {
+    await Supabase.instance.client.storage.from(bucket).upload(path, image);
+
+    final signedUrlResponse = await Supabase.instance.client.storage
+        .from(bucket)
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 50);
+
+    return signedUrlResponse;
   }
 
   Future<void> _submitForm() async {
     if (_formKey.currentState!.validate()) {
-      print('Inside form submission');
       String? imageUrl;
       String? receiptUrl;
 
       if (_image != null) {
         imageUrl = await _uploadImage(
-            _image!, 'students/${widget.branchId}/image_${DateTime
-            .now()
-            .millisecondsSinceEpoch}.jpg');
+          _image!,
+          'student-images',
+          '${widget.branchId}_${_name?.replaceAll(' ', '').toLowerCase()}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        );
       }
 
       if (_receiptImage != null) {
         receiptUrl = await _uploadImage(
-            _receiptImage!, 'students/${widget.branchId}/receipt_${DateTime
-            .now()
-            .millisecondsSinceEpoch}.jpg');
-        print('Receipt URL : ' + receiptUrl.toString());
+          _receiptImage!,
+          'receipt-images',
+          '${widget.branchId}_${_name?.replaceAll(' ', '').toLowerCase()}_receipt_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        );
       }
 
-      print('About to submit ...');
-      await FirebaseFirestore.instance.collection('students').add({
+      var record = {
         'branchId': widget.branchId,
-        'branchName': widget.branchName,
+        'name': _name,
+        'mobile': _mobile,
+        'startDate': _startDate?.toIso8601String(),
+        'endDate': _endDate?.toIso8601String(),
         'seatType': _seatType,
-        'startDate': _startDate,
-        'endDate': _endDate,
+        'seatNumber': _seatNumber,
+        'paymentAmount': _paymentAmount,
         'imageUrl': imageUrl,
         'receiptUrl': receiptUrl,
-        // Add other form fields here
-      });
+      };
 
-      // Handle form submission success (e.g., show a success message or navigate back)
-      print('Form Submission is successful');
+      await Supabase.instance.client.from('students').insert(record);
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Registration successful!')));
+      Navigator.pop(context, true);
     }
   }
 
@@ -99,8 +98,7 @@ class _FormPageState extends State<FormPage> {
     showModalBottomSheet(
       context: context,
       builder:
-          (context) =>
-          SafeArea(
+          (context) => SafeArea(
             child: Wrap(
               children: [
                 ListTile(
@@ -148,19 +146,19 @@ class _FormPageState extends State<FormPage> {
               GestureDetector(
                 onTap: () => _showImageSourceActionSheet(false),
                 child:
-                _image == null
-                    ? Container(
-                  width: 100,
-                  height: 100,
-                  color: Colors.grey[300],
-                  child: Icon(Icons.camera_alt, color: Colors.white),
-                )
-                    : Image.file(
-                  _image!,
-                  width: 100,
-                  height: 100,
-                  fit: BoxFit.cover,
-                ),
+                    _image == null
+                        ? Container(
+                          width: 100,
+                          height: 100,
+                          color: Colors.grey[300],
+                          child: Icon(Icons.camera_alt, color: Colors.white),
+                        )
+                        : Image.file(
+                          _image!,
+                          width: 100,
+                          height: 100,
+                          fit: BoxFit.cover,
+                        ),
               ),
               SizedBox(height: 10),
               TextFormField(
@@ -171,6 +169,27 @@ class _FormPageState extends State<FormPage> {
                   }
                   return null;
                 },
+                onChanged: (value) {
+                  setState(() {
+                    _name = value!;
+                  });
+                },
+              ),
+              SizedBox(height: 10),
+              TextFormField(
+                decoration: InputDecoration(labelText: 'Student Mobile'),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter the student mobile number';
+                  }
+                  return null;
+                },
+                onChanged: (value) {
+                  setState(() {
+                    _mobile = value!;
+                  });
+                },
               ),
               SizedBox(height: 10),
               Row(
@@ -180,15 +199,14 @@ class _FormPageState extends State<FormPage> {
                       value: _seatType,
                       decoration: InputDecoration(labelText: 'Seat Type'),
                       items:
-                      ['Reserved', 'Unreserved']
-                          .map(
-                            (type) =>
-                            DropdownMenuItem(
-                              value: type.toLowerCase(),
-                              child: Text(type),
-                            ),
-                      )
-                          .toList(),
+                          ['Reserved', 'Unreserved']
+                              .map(
+                                (type) => DropdownMenuItem(
+                                  value: type.toLowerCase(),
+                                  child: Text(type),
+                                ),
+                              )
+                              .toList(),
                       onChanged: (value) {
                         setState(() {
                           _seatType = value!;
@@ -208,6 +226,11 @@ class _FormPageState extends State<FormPage> {
                             return 'Please enter the seat number';
                           }
                           return null;
+                        },
+                        onChanged: (value) {
+                          setState(() {
+                            _seatNumber = int.tryParse(value);
+                          });
                         },
                       ),
                     ),
@@ -235,9 +258,9 @@ class _FormPageState extends State<FormPage> {
                       },
                       controller: TextEditingController(
                         text:
-                        _startDate != null
-                            ? _startDate!.toLocal().toString().split(' ')[0]
-                            : '',
+                            _startDate != null
+                                ? _startDate!.toLocal().toString().split(' ')[0]
+                                : '',
                       ),
                       validator: (value) {
                         if (_startDate == null) {
@@ -267,9 +290,9 @@ class _FormPageState extends State<FormPage> {
                       },
                       controller: TextEditingController(
                         text:
-                        _endDate != null
-                            ? _endDate!.toLocal().toString().split(' ')[0]
-                            : '',
+                            _endDate != null
+                                ? _endDate!.toLocal().toString().split(' ')[0]
+                                : '',
                       ),
                       validator: (value) {
                         if (_endDate == null) {
@@ -295,6 +318,11 @@ class _FormPageState extends State<FormPage> {
                   }
                   return null;
                 },
+                onChanged: (value) {
+                  setState(() {
+                    _paymentAmount = double.tryParse(value);
+                  });
+                },
               ),
               SizedBox(height: 20),
               Row(
@@ -316,7 +344,7 @@ class _FormPageState extends State<FormPage> {
                         : 'Receipt Attached',
                     style: TextStyle(
                       color:
-                      _receiptImage == null ? Colors.black54 : Colors.green,
+                          _receiptImage == null ? Colors.black54 : Colors.green,
                     ),
                   ),
                 ],

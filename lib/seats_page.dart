@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class SeatsPage extends StatelessWidget {
-  final List<dynamic> seatLayout;
+  final List<List<String>> seatLayout;
   final int totalReservedSeats;
   final int totalUnreservedSeats;
   final List<Map<String, dynamic>> students;
@@ -11,7 +11,7 @@ class SeatsPage extends StatelessWidget {
     required this.seatLayout,
     required this.totalReservedSeats,
     required this.totalUnreservedSeats,
-    required this.students
+    required this.students,
   }) : super(key: key);
 
   @override
@@ -19,7 +19,6 @@ class SeatsPage extends StatelessWidget {
     Set<String> occupiedSeats = Set();
     int occupiedReservedSeats = 0;
     int occupiedUnreservedSeats = 0;
-    List<List<String>> seatLayoutMatrix = [];
 
     for (var student in students) {
       if (student['seatType'] == 'reserved') {
@@ -30,25 +29,15 @@ class SeatsPage extends StatelessWidget {
       }
     }
 
-    for (var seatRow in seatLayout) {
-      var rowSize = seatRow.keys.length;
-      List<String> matrixSeatRow = [];
-      for (var seatIndex = 1; seatIndex <= rowSize; seatIndex++) {
-        String seat = seatRow[seatIndex.toString()]!;
-        matrixSeatRow.add(seat);
-      }
-      seatLayoutMatrix!.add(matrixSeatRow);
-    }
-
     double maxWidthForSeatLayout = MediaQuery.of(context).size.width * 0.8;
     double maxHeightForSeatLayout = 350;
-    int maxSeatsInRow = seatLayoutMatrix
+    int maxSeatsInRow = seatLayout
         .map((row) => row.length)
         .reduce((a, b) => a > b ? a : b);
     double seatWidth =
         maxWidthForSeatLayout / maxSeatsInRow - 4; // Subtracting margin
     double seatHeight =
-        maxHeightForSeatLayout / seatLayoutMatrix.length - 4; // Subtracting margin
+        maxHeightForSeatLayout / seatLayout.length - 4; // Subtracting margin
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -59,9 +48,9 @@ class SeatsPage extends StatelessWidget {
               child: Container(
                 child: ListView.builder(
                   padding: const EdgeInsets.all(10),
-                  itemCount: seatLayoutMatrix.length,
+                  itemCount: seatLayout.length,
                   itemBuilder: (context, rowIndex) {
-                    List<String> seats = seatLayoutMatrix[rowIndex];
+                    List<String> seats = seatLayout[rowIndex];
 
                     return Row(
                       mainAxisAlignment: MainAxisAlignment.center,

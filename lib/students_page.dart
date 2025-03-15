@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class StudentsPage extends StatefulWidget {
   final List<Map<String, dynamic>> students;
@@ -11,6 +13,15 @@ class StudentsPage extends StatefulWidget {
 
 class _StudentsPageState extends State<StudentsPage> {
   String searchQuery = '';
+
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    final Uri launchUri = Uri(scheme: 'tel', path: phoneNumber);
+    await launchUrl(launchUri);
+  }
+
+  String formatDate(DateTime date) {
+    return DateFormat('dd MMM yyyy').format(date);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,8 +72,20 @@ class _StudentsPageState extends State<StudentsPage> {
                     backgroundColor: Colors.cyan[100],
                   ),
                   title: Text(student['name']!),
-                  subtitle: Text(
-                    'Seat - ${student['seatType'] == 'reserved' ? 'Reserved (${student['seatNumber']!.toString()})' : 'Unreserved'}',
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Seat - ${student['seatType'] == 'reserved' ? 'Reserved (${student['seatNumber']!.toString()})' : 'Unreserved'}',
+                      ),
+                      Text(
+                        '${formatDate(DateTime.parse(student['startDate']))} till ${formatDate(DateTime.parse(student['endDate']))}',
+                      ),
+                    ],
+                  ),
+                  trailing: IconButton(
+                    onPressed: () => _makePhoneCall(student['mobile']),
+                    icon: const Icon(Icons.call),
                   ),
                 );
               },
