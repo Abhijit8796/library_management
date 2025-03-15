@@ -29,8 +29,8 @@ class SeatsPage extends StatelessWidget {
       }
     }
 
-    double maxWidthForSeatLayout = MediaQuery.of(context).size.width * 0.8;
-    double maxHeightForSeatLayout = 350;
+    double maxWidthForSeatLayout = MediaQuery.of(context).size.width * 0.9;
+    double maxHeightForSeatLayout = 420;
     int maxSeatsInRow = seatLayout
         .map((row) => row.length)
         .reduce((a, b) => a > b ? a : b);
@@ -81,7 +81,7 @@ class SeatsPage extends StatelessWidget {
                                 seatLabel,
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 16,
+                                  fontSize: 14,
                                 ),
                                 textAlign: TextAlign.center,
                               ),
@@ -91,7 +91,7 @@ class SeatsPage extends StatelessWidget {
                           return Container(
                             margin: const EdgeInsets.all(2),
                             width: seatWidth,
-                            height: seatHeight,
+                            height: seatHeight * 0.5,
                           ); // Empty space
                         }
                       }),
@@ -179,7 +179,10 @@ class SeatsPage extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 22,
                                     color:
-                                        occupiedUnreservedSeats /
+                                        occupiedUnreservedSeats ==
+                                                totalUnreservedSeats
+                                            ? Colors.orange
+                                            : occupiedUnreservedSeats /
                                                     totalUnreservedSeats >
                                                 1.25
                                             ? Colors.red

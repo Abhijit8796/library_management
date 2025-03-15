@@ -137,7 +137,7 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Container(
-              width: 180,
+              width: 240,
               child: DropdownButton<String>(
                 value: _selectedBranch,
                 items:
