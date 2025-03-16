@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dnyanjyoti_abhyasika_app/helper_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
@@ -29,6 +30,8 @@ class _FormPageState extends State<FormPage> {
   File? _image;
   File? _receiptImage;
   String? _imageUrl;
+  int? _selectedSeatNumber;
+  List<int> availableSeatNumbers = [];
 
   @override
   void initState() {
@@ -53,6 +56,73 @@ class _FormPageState extends State<FormPage> {
     );
     _seatType = widget.initialValues?['seatType'] ?? 'reserved';
     _imageUrl = widget.initialValues?['imageUrl'];
+    _selectedSeatNumber = widget.initialValues?['seatNumber'];
+
+    _startDateController.addListener(_recalculateAvailableSeats);
+    _endDateController.addListener(_recalculateAvailableSeats);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _recalculateAvailableSeats();
+  }
+
+  List<int> getAvailableSeatNumbers(
+    List<Map<String, dynamic>> students,
+    int totalReservedSeats,
+    String? startDate,
+    String? endDate,
+  ) {
+    print('I am here');
+
+    if (_selectedSeatNumber != null && _selectedSeatNumber != '') {
+      return [_selectedSeatNumber!];
+    }
+
+    if (startDate == null ||
+        startDate == '' ||
+        endDate == null ||
+        endDate == '') {
+      return [];
+    }
+
+    print('Current start-date: $startDate & end-date: $endDate');
+    DateTime start = DateTime.parse(startDate);
+    DateTime end = DateTime.parse(endDate);
+    Set<int> occupiedSeats = {};
+
+    for (var student in students) {
+      DateTime studentStart = DateTime.parse(student['startDate']);
+      DateTime studentEnd = DateTime.parse(student['endDate']);
+      if (student['seatType'] == 'reserved' &&
+          studentEnd.isAfter(start) &&
+          studentStart.isBefore(end)) {
+        occupiedSeats.add(student['seatNumber']);
+      }
+    }
+
+    List<int> availableSeats = [];
+    for (int i = 1; i <= totalReservedSeats; i++) {
+      if (!occupiedSeats.contains(i)) {
+        availableSeats.add(i);
+      }
+    }
+
+    return availableSeats;
+  }
+
+  void _recalculateAvailableSeats() {
+    final globalState = Provider.of<GlobalState>(context, listen: false);
+    setState(() {
+      print('I am here 1');
+      availableSeatNumbers = getAvailableSeatNumbers(
+        globalState.students,
+        globalState.branchDetails!['reservedSeats'],
+        _startDateController.text,
+        _endDateController.text,
+      );
+    });
   }
 
   Future<void> _pickImage(ImageSource source, bool isReceipt) async {
@@ -103,14 +173,32 @@ class _FormPageState extends State<FormPage> {
         (1 + (int.tryParse(dotenv.env['UNRESERVED_EXTRA_CAPACITY']!)! / 100));
   }
 
-  bool isReservedSeatBooked(
+  Map<String, dynamic>? isReservedSeatBooked(
     Map<String, dynamic>? branchDetails,
     List<Map<String, dynamic>> students,
     String startDate,
     String endDate,
     int seatNumber,
   ) {
-    return false;
+    List<Map<String, dynamic>> reservedStudents =
+        students
+            .where(
+              (student) =>
+                  student['seatType'] == 'reserved' &&
+                  student['seatNumber'] == seatNumber &&
+                  (DateTime.parse(
+                        startDate,
+                      ).isBefore(DateTime.parse(student['endDate'])) &&
+                      DateTime.parse(
+                        endDate,
+                      ).isAfter(DateTime.parse(student['startDate']))),
+            )
+            .toList();
+
+    if (reservedStudents.isEmpty) {
+      return null;
+    }
+    return reservedStudents[0];
   }
 
   Future<void> _submitForm(
@@ -121,18 +209,27 @@ class _FormPageState extends State<FormPage> {
       String? imageUrl;
       String? receiptUrl;
 
-      if (_seatType == 'reserved' &&
-          isReservedSeatBooked(
-            branchDetails,
-            students,
-            _startDateController.text,
-            _endDateController.text,
-            int.tryParse(_seatNumberController.text)!,
-          )) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('This seat is already reserved, cant book!')),
+      if (_seatType == 'reserved') {
+        Map<String, dynamic>? reservationDetails = isReservedSeatBooked(
+          branchDetails,
+          students,
+          _startDateController.text,
+          _endDateController.text,
+          int.tryParse(_seatNumberController.text)!,
         );
-        return;
+        print(reservationDetails);
+        if (reservationDetails != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Seat is already reserved for \n${reservationDetails['name']} '
+                '(${HelperUtil.formatDate(DateTime.parse(reservationDetails['startDate']))} to '
+                '${HelperUtil.formatDate(DateTime.parse(reservationDetails['endDate']))})',
+              ),
+            ),
+          );
+          return;
+        }
       } else if (_seatType == 'unreserved' &&
           isUnreservedOverbooked(
             branchDetails,
@@ -379,14 +476,27 @@ class _FormPageState extends State<FormPage> {
                   SizedBox(width: 10),
                   if (_seatType == 'reserved')
                     Expanded(
-                      child: TextFormField(
-                        controller: _seatNumberController,
+                      child: DropdownButtonFormField<int>(
                         decoration: InputDecoration(labelText: 'Seat Number'),
-                        keyboardType: TextInputType.number,
+                        value: _selectedSeatNumber,
+                        menuMaxHeight: 250.0,
+                        items:
+                            availableSeatNumbers
+                                .map(
+                                  (seatNumber) => DropdownMenuItem(
+                                    value: seatNumber,
+                                    child: Text(seatNumber.toString()),
+                                  ),
+                                )
+                                .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedSeatNumber = value;
+                          });
+                        },
                         validator: (value) {
-                          if (_seatType == 'reserved' &&
-                              (value == null || value.isEmpty)) {
-                            return 'Please enter the seat number';
+                          if (_seatType == 'reserved' && value == null) {
+                            return 'Please select a seat number';
                           }
                           return null;
                         },

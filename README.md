@@ -18,7 +18,7 @@ samples, guidance on mobile development, and a full API reference.
 ### TODO Items
 
 [x] Add validation at the time of registration for unreserved seats
-[ ] Add validation at the time of registration for reserved seats
+[x] Add validation at the time of registration for reserved seats
 [x] Show reserved / unreserved seat count if seat is booked on today (consider start-date & end-date & today's date)
 [x] Show student details on click of student item
 [x] Allow extension of booking (renew membership option)
