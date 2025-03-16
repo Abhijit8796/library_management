@@ -3,19 +3,15 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'global_state.dart';
+
 class FormPage extends StatefulWidget {
-  final Map<String, dynamic>? branchDetails;
-  final List<Map<String, dynamic>> students;
   final Map<String, dynamic>? initialValues;
 
-  const FormPage({
-    super.key,
-    required this.branchDetails,
-    required this.students,
-    this.initialValues,
-  });
+  const FormPage({super.key, this.initialValues});
 
   @override
   _FormPageState createState() => _FormPageState();
@@ -23,32 +19,40 @@ class FormPage extends StatefulWidget {
 
 class _FormPageState extends State<FormPage> {
   final _formKey = GlobalKey<FormState>();
-  String? _name;
-  String? _mobile;
+  late TextEditingController _nameController;
+  late TextEditingController _mobileController;
+  late TextEditingController _seatNumberController;
+  late TextEditingController _paymentAmountController;
+  late TextEditingController _startDateController;
+  late TextEditingController _endDateController;
   String _seatType = 'reserved';
-  int? _seatNumber;
-  double? _paymentAmount;
-  DateTime? _startDate;
-  DateTime? _endDate;
   File? _image;
   File? _receiptImage;
+  String? _imageUrl;
 
   @override
   void initState() {
     super.initState();
-    if (widget.initialValues != null) {
-      _name = widget.initialValues!['name'];
-      _mobile = widget.initialValues!['mobile'];
-      _seatType = widget.initialValues!['seatType'] ?? 'reserved';
-      _seatNumber = widget.initialValues!['seatNumber'];
-      _paymentAmount = widget.initialValues!['paymentAmount'];
-      _startDate = widget.initialValues!['startDate'] != null
-          ? DateTime.parse(widget.initialValues!['startDate'])
-          : null;
-      _endDate = widget.initialValues!['endDate'] != null
-          ? DateTime.parse(widget.initialValues!['endDate'])
-          : null;
-    }
+    _nameController = TextEditingController(
+      text: widget.initialValues?['name'],
+    );
+    _mobileController = TextEditingController(
+      text: widget.initialValues?['mobile'],
+    );
+    _seatNumberController = TextEditingController(
+      text: widget.initialValues?['seatNumber']?.toString(),
+    );
+    _paymentAmountController = TextEditingController(
+      text: widget.initialValues?['paymentAmount']?.toString(),
+    );
+    _startDateController = TextEditingController(
+      text: widget.initialValues?['startDate'],
+    );
+    _endDateController = TextEditingController(
+      text: widget.initialValues?['endDate'],
+    );
+    _seatType = widget.initialValues?['seatType'] ?? 'reserved';
+    _imageUrl = widget.initialValues?['imageUrl'];
   }
 
   Future<void> _pickImage(ImageSource source, bool isReceipt) async {
@@ -75,47 +79,67 @@ class _FormPageState extends State<FormPage> {
     return signedUrlResponse;
   }
 
-  bool isUnreservedOverbooked(DateTime startDate, DateTime endDate) {
+  bool isUnreservedOverbooked(
+    Map<String, dynamic>? branchDetails,
+    List<Map<String, dynamic>> students,
+    String startDate,
+    String endDate,
+  ) {
     List<Map<String, dynamic>> unreservedStudents =
-        widget.students
+        students
             .where(
               (student) =>
                   student['seatType'] == 'unreserved' &&
                   (DateTime.parse(
-                        startDate.toIso8601String(),
+                        startDate,
                       ).isBefore(DateTime.parse(student['endDate'])) &&
                       DateTime.parse(
-                        endDate.toIso8601String(),
+                        endDate,
                       ).isAfter(DateTime.parse(student['startDate']))),
             )
             .toList();
 
-    return (unreservedStudents.length /
-            widget.branchDetails!['unreservedSeats']) >=
+    return (unreservedStudents.length / branchDetails!['unreservedSeats']) >=
         (1 + (int.tryParse(dotenv.env['UNRESERVED_EXTRA_CAPACITY']!)! / 100));
   }
 
   bool isReservedSeatBooked(
-    DateTime startDate,
-    DateTime endDate,
+    Map<String, dynamic>? branchDetails,
+    List<Map<String, dynamic>> students,
+    String startDate,
+    String endDate,
     int seatNumber,
   ) {
     return false;
   }
 
-  Future<void> _submitForm() async {
+  Future<void> _submitForm(
+    Map<String, dynamic>? branchDetails,
+    List<Map<String, dynamic>> students,
+  ) async {
     if (_formKey.currentState!.validate()) {
       String? imageUrl;
       String? receiptUrl;
 
       if (_seatType == 'reserved' &&
-          isReservedSeatBooked(_startDate!, _endDate!, _seatNumber!)) {
+          isReservedSeatBooked(
+            branchDetails,
+            students,
+            _startDateController.text,
+            _endDateController.text,
+            int.tryParse(_seatNumberController.text)!,
+          )) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('This seat is already reserved, cant book!')),
         );
         return;
       } else if (_seatType == 'unreserved' &&
-          isUnreservedOverbooked(_startDate!, _endDate!)) {
+          isUnreservedOverbooked(
+            branchDetails,
+            students,
+            _startDateController.text,
+            _endDateController.text,
+          )) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Unreserved seats are overbooked, cant book more!'),
@@ -127,7 +151,7 @@ class _FormPageState extends State<FormPage> {
           imageUrl = await _uploadImage(
             _image!,
             'student-images',
-            '${widget.branchDetails!['id']}_${_name?.replaceAll(' ', '').toLowerCase()}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+            '${branchDetails!['id']}_${_nameController.text.replaceAll(' ', '').toLowerCase()}_${DateTime.now().millisecondsSinceEpoch}.jpg',
           );
         }
 
@@ -135,19 +159,19 @@ class _FormPageState extends State<FormPage> {
           receiptUrl = await _uploadImage(
             _receiptImage!,
             'receipt-images',
-            '${widget.branchDetails!['id']}_${_name?.replaceAll(' ', '').toLowerCase()}_receipt_${DateTime.now().millisecondsSinceEpoch}.jpg',
+            '${branchDetails!['id']}_${_nameController.text.replaceAll(' ', '').toLowerCase()}_receipt_${DateTime.now().millisecondsSinceEpoch}.jpg',
           );
         }
 
         var record = {
-          'branchId': widget.branchDetails!['id'],
-          'name': _name,
-          'mobile': _mobile,
-          'startDate': _startDate?.toIso8601String(),
-          'endDate': _endDate?.toIso8601String(),
+          'branchId': branchDetails!['id'],
+          'name': _nameController.text,
+          'mobile': _mobileController.text,
+          'startDate': _startDateController.text,
+          'endDate': _endDateController.text,
           'seatType': _seatType,
-          'seatNumber': _seatNumber,
-          'paymentAmount': _paymentAmount,
+          'seatNumber': int.tryParse(_seatNumberController.text),
+          'paymentAmount': double.tryParse(_paymentAmountController.text),
           'imageUrl': imageUrl,
           'receiptUrl': receiptUrl,
         };
@@ -193,6 +217,10 @@ class _FormPageState extends State<FormPage> {
 
   @override
   Widget build(BuildContext context) {
+    final globalState = Provider.of<GlobalState>(context);
+    final Map<String, dynamic>? branchDetails = globalState.branchDetails;
+    final List<Map<String, dynamic>> students = globalState.students;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -208,14 +236,21 @@ class _FormPageState extends State<FormPage> {
           child: Column(
             children: [
               Text(
-                'Branch - ${widget.branchDetails!['name']}',
+                'Branch - ${branchDetails!['name']}',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 10),
               GestureDetector(
                 onTap: () => _showImageSourceActionSheet(false),
                 child:
-                    _image == null
+                    _imageUrl != null
+                        ? Image.network(
+                          _imageUrl!,
+                          width: 100,
+                          height: 100,
+                          fit: BoxFit.cover,
+                        )
+                        : _image == null
                         ? Container(
                           width: 100,
                           height: 100,
@@ -231,6 +266,7 @@ class _FormPageState extends State<FormPage> {
               ),
               SizedBox(height: 5),
               TextFormField(
+                controller: _nameController,
                 decoration: InputDecoration(labelText: 'Student Name'),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -238,14 +274,10 @@ class _FormPageState extends State<FormPage> {
                   }
                   return null;
                 },
-                onChanged: (value) {
-                  setState(() {
-                    _name = value;
-                  });
-                },
               ),
               SizedBox(height: 5),
               TextFormField(
+                controller: _mobileController,
                 decoration: InputDecoration(labelText: 'Student Mobile'),
                 keyboardType: TextInputType.number,
                 validator: (value) {
@@ -254,17 +286,13 @@ class _FormPageState extends State<FormPage> {
                   }
                   return null;
                 },
-                onChanged: (value) {
-                  setState(() {
-                    _mobile = value;
-                  });
-                },
               ),
               SizedBox(height: 5),
               Row(
                 children: [
                   Expanded(
                     child: TextFormField(
+                      controller: _startDateController,
                       decoration: InputDecoration(labelText: 'Start Date'),
                       readOnly: true,
                       onTap: () async {
@@ -276,18 +304,13 @@ class _FormPageState extends State<FormPage> {
                         );
                         if (pickedDate != null) {
                           setState(() {
-                            _startDate = pickedDate;
+                            _startDateController.text =
+                                pickedDate.toLocal().toString().split(' ')[0];
                           });
                         }
                       },
-                      controller: TextEditingController(
-                        text:
-                            _startDate != null
-                                ? _startDate!.toLocal().toString().split(' ')[0]
-                                : '',
-                      ),
                       validator: (value) {
-                        if (_startDate == null) {
+                        if (value == null || value.isEmpty) {
                           return 'Please select a start date';
                         }
                         return null;
@@ -297,6 +320,7 @@ class _FormPageState extends State<FormPage> {
                   SizedBox(width: 5),
                   Expanded(
                     child: TextFormField(
+                      controller: _endDateController,
                       decoration: InputDecoration(labelText: 'End Date'),
                       readOnly: true,
                       onTap: () async {
@@ -308,22 +332,19 @@ class _FormPageState extends State<FormPage> {
                         );
                         if (pickedDate != null) {
                           setState(() {
-                            _endDate = pickedDate;
+                            _endDateController.text =
+                                pickedDate.toLocal().toString().split(' ')[0];
                           });
                         }
                       },
-                      controller: TextEditingController(
-                        text:
-                            _endDate != null
-                                ? _endDate!.toLocal().toString().split(' ')[0]
-                                : '',
-                      ),
                       validator: (value) {
-                        if (_endDate == null) {
+                        if (value == null || value.isEmpty) {
                           return 'Please select an end date';
                         }
-                        if (_startDate != null &&
-                            _endDate!.isBefore(_startDate!)) {
+                        if (_startDateController.text.isNotEmpty &&
+                            DateTime.parse(value).isBefore(
+                              DateTime.parse(_startDateController.text),
+                            )) {
                           return 'End date cannot be before start date';
                         }
                         return null;
@@ -359,6 +380,7 @@ class _FormPageState extends State<FormPage> {
                   if (_seatType == 'reserved')
                     Expanded(
                       child: TextFormField(
+                        controller: _seatNumberController,
                         decoration: InputDecoration(labelText: 'Seat Number'),
                         keyboardType: TextInputType.number,
                         validator: (value) {
@@ -368,17 +390,13 @@ class _FormPageState extends State<FormPage> {
                           }
                           return null;
                         },
-                        onChanged: (value) {
-                          setState(() {
-                            _seatNumber = int.tryParse(value);
-                          });
-                        },
                       ),
                     ),
                 ],
               ),
               SizedBox(height: 5),
               TextFormField(
+                controller: _paymentAmountController,
                 decoration: InputDecoration(labelText: 'Payment Amount'),
                 keyboardType: TextInputType.number,
                 validator: (value) {
@@ -386,11 +404,6 @@ class _FormPageState extends State<FormPage> {
                     return 'Please enter the payment amount';
                   }
                   return null;
-                },
-                onChanged: (value) {
-                  setState(() {
-                    _paymentAmount = double.tryParse(value);
-                  });
                 },
               ),
               SizedBox(height: 20),
@@ -420,7 +433,7 @@ class _FormPageState extends State<FormPage> {
               ),
               SizedBox(height: 30),
               ElevatedButton(
-                onPressed: _submitForm,
+                onPressed: () => _submitForm(branchDetails, students),
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   backgroundColor: Colors.lightBlueAccent,

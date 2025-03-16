@@ -1,12 +1,15 @@
-import 'package:dnyanjyoti_abhyasika_app/helper_util.dart';
-import 'package:dnyanjyoti_abhyasika_app/student_details_page.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
+
+import 'global_state.dart';
+import 'helper_util.dart';
+import 'student_details_page.dart';
 
 class StudentsPage extends StatefulWidget {
-  final List<Map<String, dynamic>> students;
+  final Function onFormSubmitted;
 
-  const StudentsPage({Key? key, required this.students}) : super(key: key);
+  const StudentsPage({Key? key, required this.onFormSubmitted})
+    : super(key: key);
 
   @override
   _StudentsPageState createState() => _StudentsPageState();
@@ -15,21 +18,43 @@ class StudentsPage extends StatefulWidget {
 class _StudentsPageState extends State<StudentsPage> {
   String searchQuery = '';
 
-  Future<void> _makePhoneCall(String phoneNumber) async {
-    final Uri launchUri = Uri(scheme: 'tel', path: phoneNumber);
-    await launchUrl(launchUri);
+  void _navigateToStudentDetailsPage(student) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StudentDetailsPage(student: student),
+      ),
+    );
+
+    if (result == true) {
+      widget.onFormSubmitted();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final globalState = Provider.of<GlobalState>(context);
+    final List<Map<String, dynamic>> students = globalState.students;
+
     List<Map<String, dynamic>> filteredStudents =
-        widget.students
+        students
             .where(
               (student) => student['name']!.toLowerCase().contains(
                 searchQuery.toLowerCase(),
               ),
             )
             .toList();
+
+    filteredStudents.sort((a, b) {
+      if (a['seatType'] == 'reserved' && b['seatType'] != 'reserved') {
+        return -1;
+      } else if (a['seatType'] != 'reserved' && b['seatType'] == 'reserved') {
+        return 1;
+      }
+      // If both have the same seatType, compare by endDate in reverse order
+      int dateOrder = DateTime.parse(a['endDate']).compareTo(DateTime.parse(b['endDate']));
+      return dateOrder;
+    });
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -81,19 +106,7 @@ class _StudentsPageState extends State<StudentsPage> {
                     ],
                   ),
                   trailing: Icon(Icons.arrow_forward),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) => StudentDetailsPage(student: student),
-                      ),
-                    );
-                  },
-                  // trailing: IconButton(
-                  //   onPressed: () => _makePhoneCall(student['mobile']),
-                  //   icon: const Icon(Icons.call),
-                  // ),
+                  onTap: () => _navigateToStudentDetailsPage(student),
                 );
               },
             ),

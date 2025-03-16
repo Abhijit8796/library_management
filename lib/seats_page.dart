@@ -1,23 +1,102 @@
-import 'package:dnyanjyoti_abhyasika_app/helper_util.dart';
+import 'package:dnyanjyoti_abhyasika_app/form_page.dart';
+import 'package:dnyanjyoti_abhyasika_app/student_details_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart';
 
-class SeatsPage extends StatelessWidget {
-  final List<List<String>> seatLayout;
-  final int totalReservedSeats;
-  final int totalUnreservedSeats;
-  final List<Map<String, dynamic>> students;
+import 'global_state.dart';
+import 'helper_util.dart';
 
-  const SeatsPage({
-    super.key,
-    required this.seatLayout,
-    required this.totalReservedSeats,
-    required this.totalUnreservedSeats,
-    required this.students,
-  });
+class SeatsPage extends StatefulWidget {
+  final Function onFormSubmitted;
+
+  const SeatsPage({Key? key, required this.onFormSubmitted}) : super(key: key);
+
+  @override
+  _SeatsPageState createState() => _SeatsPageState();
+}
+
+class _SeatsPageState extends State<SeatsPage> {
+  void _navigateToFormPage(seatNumber) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => FormPage(initialValues: {'seatNumber': seatNumber}),
+      ),
+    );
+
+    if (result == true) {
+      widget.onFormSubmitted();
+    }
+  }
+
+  void _navigateToStudentDetailsPage(student) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StudentDetailsPage(student: student),
+      ),
+    );
+
+    if (result == true) {
+      widget.onFormSubmitted();
+    }
+  }
+
+  Map<String, dynamic>? getStudentForSeat(students, seatNumber) {
+    List<Map<String, dynamic>> studentsForSeat =
+        students
+            .where((student) => student['seatNumber'] == seatNumber)
+            .toList();
+    for (var student in studentsForSeat) {
+      if (HelperUtil.isTodayWithinDateRange(
+        student['startDate'],
+        student['endDate'],
+      )) {
+        return student;
+      }
+    }
+    return null;
+  }
+
+  DateTime? getMaxEndDateForSeat(
+    List<Map<String, dynamic>> students,
+    int? seatNumber,
+  ) {
+    if (seatNumber == null) return null;
+    List<Map<String, dynamic>> studentsForSeat =
+        students
+            .where((student) => student['seatNumber'] == seatNumber)
+            .toList();
+    if (studentsForSeat.isEmpty) return null;
+    return studentsForSeat
+        .map((student) => DateTime.parse(student['endDate']))
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+  }
+
+  bool isEndDateWithinNextFiveDays(DateTime? endDate) {
+    if (endDate == null) return false;
+    final now = DateTime.now();
+    final difference = endDate.difference(now).inDays;
+    return difference <= 5 && difference >= 0;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final globalState = Provider.of<GlobalState>(context);
+
+    final branchDetails = globalState.branchDetails;
+
+    if (branchDetails == null) {
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final List<List<String>> seatLayout = branchDetails['seatLayout'];
+    final int totalReservedSeats = branchDetails['reservedSeats'];
+    final int totalUnreservedSeats = branchDetails['unreservedSeats'];
+    final List<Map<String, dynamic>> students = globalState.students;
+
     Set<String> occupiedSeats = {};
     int occupiedReservedSeats = 0;
     int occupiedUnreservedSeats = 0;
@@ -37,14 +116,14 @@ class SeatsPage extends StatelessWidget {
     }
 
     double maxWidthForSeatLayout = MediaQuery.of(context).size.width * 0.9;
-    double maxHeightForSeatLayout = 420;
+    double maxHeightForSeatLayout = 370;
     int maxSeatsInRow = seatLayout
         .map((row) => row.length)
         .reduce((a, b) => a > b ? a : b);
     double seatWidth =
-        maxWidthForSeatLayout / maxSeatsInRow - 4; // Subtracting margin
+        (maxWidthForSeatLayout / maxSeatsInRow) - 4; // Subtracting margin
     double seatHeight =
-        maxHeightForSeatLayout / seatLayout.length - 4; // Subtracting margin
+        (maxHeightForSeatLayout / seatLayout.length) - 4; // Subtracting margin
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -74,22 +153,44 @@ class SeatsPage extends StatelessWidget {
                           seatColor = Colors.blue;
                           seatLabel = seat;
                         }
-                        return Container(
-                          margin: const EdgeInsets.all(2),
-                          width: seatWidth,
-                          height: seatHeight,
-                          decoration: BoxDecoration(
-                            color: seatColor,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                          child: Center(
-                            child: Text(
-                              seatLabel,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
+
+                        var maxEndDate = getMaxEndDateForSeat(
+                          students,
+                          int.tryParse(seatLabel),
+                        );
+                        if (isEndDateWithinNextFiveDays(maxEndDate)) {
+                          seatColor = Colors.orange;
+                        }
+
+                        return GestureDetector(
+                          onTap:
+                              seatColor == Colors.blue
+                                  ? () => _navigateToFormPage(
+                                    int.tryParse(seatLabel),
+                                  )
+                                  : () => _navigateToStudentDetailsPage(
+                                    getStudentForSeat(
+                                      students,
+                                      int.tryParse(seatLabel),
+                                    ),
+                                  ),
+                          child: Container(
+                            margin: const EdgeInsets.all(2),
+                            width: seatWidth,
+                            height: seatHeight,
+                            decoration: BoxDecoration(
+                              color: seatColor,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                            child: Center(
+                              child: Text(
+                                seatLabel,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                                textAlign: TextAlign.center,
                               ),
-                              textAlign: TextAlign.center,
                             ),
                           ),
                         );
@@ -97,7 +198,7 @@ class SeatsPage extends StatelessWidget {
                         return Container(
                           margin: const EdgeInsets.all(2),
                           width: seatWidth,
-                          height: seatHeight * 0.5,
+                          height: seatHeight,
                         ); // Empty space
                       }
                     }),
@@ -106,6 +207,7 @@ class SeatsPage extends StatelessWidget {
               ),
             ),
           ),
+          SizedBox(height: 10),
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Text(

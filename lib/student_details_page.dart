@@ -1,5 +1,9 @@
+import 'package:dnyanjyoti_abhyasika_app/form_page.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import 'global_state.dart';
 
 class StudentDetailsPage extends StatelessWidget {
   final Map<String, dynamic> student;
@@ -13,6 +17,8 @@ class StudentDetailsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final globalState = Provider.of<GlobalState>(context);
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -32,17 +38,22 @@ class StudentDetailsPage extends StatelessWidget {
                     student['imageUrl'] != null
                         ? NetworkImage(student['imageUrl']!)
                         : null,
+                backgroundColor: Colors.cyan[100],
                 child:
                     student['imageUrl'] == null
                         ? Icon(Icons.person, size: 50)
                         : null,
-                backgroundColor: Colors.cyan[100],
               ),
             ),
             SizedBox(height: 16),
             Text(
               student['name']!,
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 5),
+            Text(
+              '(${globalState.branchDetails!['name']})',
+              style: TextStyle(fontSize: 16),
             ),
             SizedBox(height: 16),
             Card(
@@ -113,13 +124,27 @@ class StudentDetailsPage extends StatelessWidget {
             ),
             SizedBox(height: 30),
             ElevatedButton(
-              onPressed: () {
-                Navigator.push(
+              onPressed: () async {
+                final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => Text('Open renew membership form'),
+                    builder:
+                        (context) => FormPage(
+                          initialValues: {
+                            'name': student['name'],
+                            'mobile': student['mobile'],
+                            'paymentAmount': student['paymentAmount'],
+                            'seatType': student['seatType'],
+                            'seatNumber': student['seatNumber'],
+                            'imageUrl': student['imageUrl'],
+                          },
+                        ),
                   ),
                 );
+
+                if (result == true) {
+                  Navigator.pop(context, true);
+                }
               },
               style: ElevatedButton.styleFrom(
                 padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),

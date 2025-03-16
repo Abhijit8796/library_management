@@ -32,6 +32,8 @@ android {
 
     buildTypes {
         release {
+            // Enable ProGuard to shrink and obfuscate your code
+            isMinifyEnabled = true
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
