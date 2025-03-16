@@ -1,5 +1,6 @@
+import 'package:dnyanjyoti_abhyasika_app/helper_util.dart';
+import 'package:dnyanjyoti_abhyasika_app/student_details_page.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class StudentsPage extends StatefulWidget {
@@ -17,10 +18,6 @@ class _StudentsPageState extends State<StudentsPage> {
   Future<void> _makePhoneCall(String phoneNumber) async {
     final Uri launchUri = Uri(scheme: 'tel', path: phoneNumber);
     await launchUrl(launchUri);
-  }
-
-  String formatDate(DateTime date) {
-    return DateFormat('dd MMM yyyy').format(date);
   }
 
   @override
@@ -79,14 +76,24 @@ class _StudentsPageState extends State<StudentsPage> {
                         'Seat - ${student['seatType'] == 'reserved' ? 'Reserved (${student['seatNumber']!.toString()})' : 'Unreserved'}',
                       ),
                       Text(
-                        '${formatDate(DateTime.parse(student['startDate']))} till ${formatDate(DateTime.parse(student['endDate']))}',
+                        '${HelperUtil.formatDate(DateTime.parse(student['startDate']))} till ${HelperUtil.formatDate(DateTime.parse(student['endDate']))}',
                       ),
                     ],
                   ),
-                  trailing: IconButton(
-                    onPressed: () => _makePhoneCall(student['mobile']),
-                    icon: const Icon(Icons.call),
-                  ),
+                  trailing: Icon(Icons.arrow_forward),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) => StudentDetailsPage(student: student),
+                      ),
+                    );
+                  },
+                  // trailing: IconButton(
+                  //   onPressed: () => _makePhoneCall(student['mobile']),
+                  //   icon: const Icon(Icons.call),
+                  // ),
                 );
               },
             ),

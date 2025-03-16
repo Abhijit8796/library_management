@@ -1,4 +1,6 @@
+import 'package:dnyanjyoti_abhyasika_app/helper_util.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class SeatsPage extends StatelessWidget {
   final List<List<String>> seatLayout;
@@ -7,25 +9,30 @@ class SeatsPage extends StatelessWidget {
   final List<Map<String, dynamic>> students;
 
   const SeatsPage({
-    Key? key,
+    super.key,
     required this.seatLayout,
     required this.totalReservedSeats,
     required this.totalUnreservedSeats,
     required this.students,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
-    Set<String> occupiedSeats = Set();
+    Set<String> occupiedSeats = {};
     int occupiedReservedSeats = 0;
     int occupiedUnreservedSeats = 0;
 
     for (var student in students) {
-      if (student['seatType'] == 'reserved') {
-        occupiedSeats.add(student['seatNumber']!.toString());
-        occupiedReservedSeats++;
-      } else {
-        occupiedUnreservedSeats++;
+      if (HelperUtil.isTodayWithinDateRange(
+        student['startDate'],
+        student['endDate'],
+      )) {
+        if (student['seatType'] == 'reserved') {
+          occupiedSeats.add(student['seatNumber']!.toString());
+          occupiedReservedSeats++;
+        } else {
+          occupiedUnreservedSeats++;
+        }
       }
     }
 
@@ -45,59 +52,57 @@ class SeatsPage extends StatelessWidget {
         children: [
           Expanded(
             child: Center(
-              child: Container(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(10),
-                  itemCount: seatLayout.length,
-                  itemBuilder: (context, rowIndex) {
-                    List<String> seats = seatLayout[rowIndex];
+              child: ListView.builder(
+                padding: const EdgeInsets.all(10),
+                itemCount: seatLayout.length,
+                itemBuilder: (context, rowIndex) {
+                  List<String> seats = seatLayout[rowIndex];
 
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(seats.length, (seatIndex) {
-                        String seat = seats[seatIndex];
-                        if (seat != '') {
-                          String occupancyStatus =
-                              occupiedSeats.contains(seat) ? 'X' : '_';
-                          Color seatColor;
-                          String seatLabel = '';
-                          if (occupancyStatus == 'X') {
-                            seatColor = Colors.red;
-                            seatLabel = seat;
-                          } else {
-                            seatColor = Colors.blue;
-                            seatLabel = seat;
-                          }
-                          return Container(
-                            margin: const EdgeInsets.all(2),
-                            width: seatWidth,
-                            height: seatHeight,
-                            decoration: BoxDecoration(
-                              color: seatColor,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                            child: Center(
-                              child: Text(
-                                seatLabel,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          );
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(seats.length, (seatIndex) {
+                      String seat = seats[seatIndex];
+                      if (seat != '') {
+                        String occupancyStatus =
+                            occupiedSeats.contains(seat) ? 'X' : '_';
+                        Color seatColor;
+                        String seatLabel = '';
+                        if (occupancyStatus == 'X') {
+                          seatColor = Colors.red;
+                          seatLabel = seat;
                         } else {
-                          return Container(
-                            margin: const EdgeInsets.all(2),
-                            width: seatWidth,
-                            height: seatHeight * 0.5,
-                          ); // Empty space
+                          seatColor = Colors.blue;
+                          seatLabel = seat;
                         }
-                      }),
-                    );
-                  },
-                ),
+                        return Container(
+                          margin: const EdgeInsets.all(2),
+                          width: seatWidth,
+                          height: seatHeight,
+                          decoration: BoxDecoration(
+                            color: seatColor,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                          child: Center(
+                            child: Text(
+                              seatLabel,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        );
+                      } else {
+                        return Container(
+                          margin: const EdgeInsets.all(2),
+                          width: seatWidth,
+                          height: seatHeight * 0.5,
+                        ); // Empty space
+                      }
+                    }),
+                  );
+                },
               ),
             ),
           ),
@@ -134,7 +139,7 @@ class SeatsPage extends StatelessWidget {
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
                                 child: Text(
-                                  '${occupiedReservedSeats} / ${totalReservedSeats}',
+                                  '$occupiedReservedSeats / $totalReservedSeats',
                                   style: TextStyle(
                                     fontSize: 22,
                                     color:
@@ -175,16 +180,21 @@ class SeatsPage extends StatelessWidget {
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
                                 child: Text(
-                                  '${occupiedUnreservedSeats} / ${totalUnreservedSeats}',
+                                  '$occupiedUnreservedSeats / $totalUnreservedSeats',
                                   style: TextStyle(
                                     fontSize: 22,
                                     color:
                                         occupiedUnreservedSeats ==
                                                 totalUnreservedSeats
                                             ? Colors.orange
-                                            : occupiedUnreservedSeats /
-                                                    totalUnreservedSeats >
-                                                1.25
+                                            : (occupiedUnreservedSeats /
+                                                    totalUnreservedSeats) >=
+                                                (1 +
+                                                    (int.tryParse(
+                                                          dotenv
+                                                              .env['UNRESERVED_EXTRA_CAPACITY']!,
+                                                        )! /
+                                                        100))
                                             ? Colors.red
                                             : Colors.green,
                                     fontWeight: FontWeight.bold,

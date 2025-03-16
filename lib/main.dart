@@ -87,12 +87,13 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  void _navigateToFormPage(branchName, branchId) async {
+  void _navigateToFormPage(branchDetails, students) async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder:
-            (context) => FormPage(branchName: branchName, branchId: branchId),
+            (context) =>
+                FormPage(branchDetails: branchDetails, students: students),
       ),
     );
 
@@ -182,10 +183,7 @@ class _MyHomePageState extends State<MyHomePage> {
         onPressed:
             branchDetails == null
                 ? null
-                : () => _navigateToFormPage(
-                  branchDetails['name'],
-                  branchDetails['id'],
-                ),
+                : () => _navigateToFormPage(branchDetails, _students),
         shape: CircleBorder(),
         backgroundColor: Colors.lightBlueAccent,
         child: Icon(Icons.add, size: 32),

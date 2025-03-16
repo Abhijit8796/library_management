@@ -26,10 +26,12 @@ class SupabaseService {
   }
 
   Future<List<Map<String, dynamic>>> getStudentsByBranchId(int branchId) async {
+    final today = DateTime.now().toIso8601String();
     final response = await _client
         .from('students')
         .select()
-        .eq('branchId', branchId);
+        .eq('branchId', branchId)
+        .gte('endDate', today);
     return List<Map<String, dynamic>>.from(response);
   }
 }

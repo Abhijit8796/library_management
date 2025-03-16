@@ -1,15 +1,21 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class FormPage extends StatefulWidget {
-  final String branchName;
-  final int branchId;
+  final Map<String, dynamic>? branchDetails;
+  final List<Map<String, dynamic>> students;
+  final Map<String, dynamic>? initialValues;
 
-  const FormPage({Key? key, required this.branchName, required this.branchId})
-    : super(key: key);
+  const FormPage({
+    super.key,
+    required this.branchDetails,
+    required this.students,
+    this.initialValues,
+  });
 
   @override
   _FormPageState createState() => _FormPageState();
@@ -26,6 +32,24 @@ class _FormPageState extends State<FormPage> {
   DateTime? _endDate;
   File? _image;
   File? _receiptImage;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialValues != null) {
+      _name = widget.initialValues!['name'];
+      _mobile = widget.initialValues!['mobile'];
+      _seatType = widget.initialValues!['seatType'] ?? 'reserved';
+      _seatNumber = widget.initialValues!['seatNumber'];
+      _paymentAmount = widget.initialValues!['paymentAmount'];
+      _startDate = widget.initialValues!['startDate'] != null
+          ? DateTime.parse(widget.initialValues!['startDate'])
+          : null;
+      _endDate = widget.initialValues!['endDate'] != null
+          ? DateTime.parse(widget.initialValues!['endDate'])
+          : null;
+    }
+  }
 
   Future<void> _pickImage(ImageSource source, bool isReceipt) async {
     final ImagePicker _picker = ImagePicker();
@@ -51,46 +75,90 @@ class _FormPageState extends State<FormPage> {
     return signedUrlResponse;
   }
 
+  bool isUnreservedOverbooked(DateTime startDate, DateTime endDate) {
+    List<Map<String, dynamic>> unreservedStudents =
+        widget.students
+            .where(
+              (student) =>
+                  student['seatType'] == 'unreserved' &&
+                  (DateTime.parse(
+                        startDate.toIso8601String(),
+                      ).isBefore(DateTime.parse(student['endDate'])) &&
+                      DateTime.parse(
+                        endDate.toIso8601String(),
+                      ).isAfter(DateTime.parse(student['startDate']))),
+            )
+            .toList();
+
+    return (unreservedStudents.length /
+            widget.branchDetails!['unreservedSeats']) >=
+        (1 + (int.tryParse(dotenv.env['UNRESERVED_EXTRA_CAPACITY']!)! / 100));
+  }
+
+  bool isReservedSeatBooked(
+    DateTime startDate,
+    DateTime endDate,
+    int seatNumber,
+  ) {
+    return false;
+  }
+
   Future<void> _submitForm() async {
     if (_formKey.currentState!.validate()) {
       String? imageUrl;
       String? receiptUrl;
 
-      if (_image != null) {
-        imageUrl = await _uploadImage(
-          _image!,
-          'student-images',
-          '${widget.branchId}_${_name?.replaceAll(' ', '').toLowerCase()}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      if (_seatType == 'reserved' &&
+          isReservedSeatBooked(_startDate!, _endDate!, _seatNumber!)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('This seat is already reserved, cant book!')),
         );
-      }
-
-      if (_receiptImage != null) {
-        receiptUrl = await _uploadImage(
-          _receiptImage!,
-          'receipt-images',
-          '${widget.branchId}_${_name?.replaceAll(' ', '').toLowerCase()}_receipt_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        return;
+      } else if (_seatType == 'unreserved' &&
+          isUnreservedOverbooked(_startDate!, _endDate!)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unreserved seats are overbooked, cant book more!'),
+          ),
         );
+        return;
+      } else {
+        if (_image != null) {
+          imageUrl = await _uploadImage(
+            _image!,
+            'student-images',
+            '${widget.branchDetails!['id']}_${_name?.replaceAll(' ', '').toLowerCase()}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          );
+        }
+
+        if (_receiptImage != null) {
+          receiptUrl = await _uploadImage(
+            _receiptImage!,
+            'receipt-images',
+            '${widget.branchDetails!['id']}_${_name?.replaceAll(' ', '').toLowerCase()}_receipt_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          );
+        }
+
+        var record = {
+          'branchId': widget.branchDetails!['id'],
+          'name': _name,
+          'mobile': _mobile,
+          'startDate': _startDate?.toIso8601String(),
+          'endDate': _endDate?.toIso8601String(),
+          'seatType': _seatType,
+          'seatNumber': _seatNumber,
+          'paymentAmount': _paymentAmount,
+          'imageUrl': imageUrl,
+          'receiptUrl': receiptUrl,
+        };
+
+        await Supabase.instance.client.from('students').insert(record);
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Registration successful!')));
+        Navigator.pop(context, true);
       }
-
-      var record = {
-        'branchId': widget.branchId,
-        'name': _name,
-        'mobile': _mobile,
-        'startDate': _startDate?.toIso8601String(),
-        'endDate': _endDate?.toIso8601String(),
-        'seatType': _seatType,
-        'seatNumber': _seatNumber,
-        'paymentAmount': _paymentAmount,
-        'imageUrl': imageUrl,
-        'receiptUrl': receiptUrl,
-      };
-
-      await Supabase.instance.client.from('students').insert(record);
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Registration successful!')));
-      Navigator.pop(context, true);
     }
   }
 
@@ -129,6 +197,7 @@ class _FormPageState extends State<FormPage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: Text('Student Registration'),
+        centerTitle: true,
         backgroundColor: Colors.white,
       ),
       resizeToAvoidBottomInset: true,
@@ -139,10 +208,10 @@ class _FormPageState extends State<FormPage> {
           child: Column(
             children: [
               Text(
-                'Branch - ${widget.branchName}',
+                'Branch - ${widget.branchDetails!['name']}',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 20),
+              SizedBox(height: 10),
               GestureDetector(
                 onTap: () => _showImageSourceActionSheet(false),
                 child:
@@ -160,7 +229,7 @@ class _FormPageState extends State<FormPage> {
                           fit: BoxFit.cover,
                         ),
               ),
-              SizedBox(height: 10),
+              SizedBox(height: 5),
               TextFormField(
                 decoration: InputDecoration(labelText: 'Student Name'),
                 validator: (value) {
@@ -171,11 +240,11 @@ class _FormPageState extends State<FormPage> {
                 },
                 onChanged: (value) {
                   setState(() {
-                    _name = value!;
+                    _name = value;
                   });
                 },
               ),
-              SizedBox(height: 10),
+              SizedBox(height: 5),
               TextFormField(
                 decoration: InputDecoration(labelText: 'Student Mobile'),
                 keyboardType: TextInputType.number,
@@ -187,11 +256,83 @@ class _FormPageState extends State<FormPage> {
                 },
                 onChanged: (value) {
                   setState(() {
-                    _mobile = value!;
+                    _mobile = value;
                   });
                 },
               ),
-              SizedBox(height: 10),
+              SizedBox(height: 5),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      decoration: InputDecoration(labelText: 'Start Date'),
+                      readOnly: true,
+                      onTap: () async {
+                        DateTime? pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2101),
+                        );
+                        if (pickedDate != null) {
+                          setState(() {
+                            _startDate = pickedDate;
+                          });
+                        }
+                      },
+                      controller: TextEditingController(
+                        text:
+                            _startDate != null
+                                ? _startDate!.toLocal().toString().split(' ')[0]
+                                : '',
+                      ),
+                      validator: (value) {
+                        if (_startDate == null) {
+                          return 'Please select a start date';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  SizedBox(width: 5),
+                  Expanded(
+                    child: TextFormField(
+                      decoration: InputDecoration(labelText: 'End Date'),
+                      readOnly: true,
+                      onTap: () async {
+                        DateTime? pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2101),
+                        );
+                        if (pickedDate != null) {
+                          setState(() {
+                            _endDate = pickedDate;
+                          });
+                        }
+                      },
+                      controller: TextEditingController(
+                        text:
+                            _endDate != null
+                                ? _endDate!.toLocal().toString().split(' ')[0]
+                                : '',
+                      ),
+                      validator: (value) {
+                        if (_endDate == null) {
+                          return 'Please select an end date';
+                        }
+                        if (_startDate != null &&
+                            _endDate!.isBefore(_startDate!)) {
+                          return 'End date cannot be before start date';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 5),
               Row(
                 children: [
                   Expanded(
@@ -236,79 +377,7 @@ class _FormPageState extends State<FormPage> {
                     ),
                 ],
               ),
-              SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      decoration: InputDecoration(labelText: 'Start Date'),
-                      readOnly: true,
-                      onTap: () async {
-                        DateTime? pickedDate = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2101),
-                        );
-                        if (pickedDate != null) {
-                          setState(() {
-                            _startDate = pickedDate;
-                          });
-                        }
-                      },
-                      controller: TextEditingController(
-                        text:
-                            _startDate != null
-                                ? _startDate!.toLocal().toString().split(' ')[0]
-                                : '',
-                      ),
-                      validator: (value) {
-                        if (_startDate == null) {
-                          return 'Please select a start date';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: TextFormField(
-                      decoration: InputDecoration(labelText: 'End Date'),
-                      readOnly: true,
-                      onTap: () async {
-                        DateTime? pickedDate = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2101),
-                        );
-                        if (pickedDate != null) {
-                          setState(() {
-                            _endDate = pickedDate;
-                          });
-                        }
-                      },
-                      controller: TextEditingController(
-                        text:
-                            _endDate != null
-                                ? _endDate!.toLocal().toString().split(' ')[0]
-                                : '',
-                      ),
-                      validator: (value) {
-                        if (_endDate == null) {
-                          return 'Please select an end date';
-                        }
-                        if (_startDate != null &&
-                            _endDate!.isBefore(_startDate!)) {
-                          return 'End date cannot be before start date';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 10),
+              SizedBox(height: 5),
               TextFormField(
                 decoration: InputDecoration(labelText: 'Payment Amount'),
                 keyboardType: TextInputType.number,
@@ -354,14 +423,14 @@ class _FormPageState extends State<FormPage> {
                 onPressed: _submitForm,
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Colors.lightBlueAccent,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 child: Text(
                   'Register Student',
-                  style: TextStyle(color: Colors.white, fontSize: 20),
+                  style: TextStyle(color: Colors.black, fontSize: 20),
                 ),
               ),
             ],
