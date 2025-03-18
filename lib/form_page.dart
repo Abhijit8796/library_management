@@ -74,8 +74,6 @@ class _FormPageState extends State<FormPage> {
     String? startDate,
     String? endDate,
   ) {
-    print('I am here');
-
     if (_selectedSeatNumber != null && _selectedSeatNumber != '') {
       return [_selectedSeatNumber!];
     }
@@ -243,43 +241,43 @@ class _FormPageState extends State<FormPage> {
           ),
         );
         return;
-      } else {
-        if (_image != null) {
-          imageUrl = await _uploadImage(
-            _image!,
-            'student-images',
-            '${branchDetails!['id']}_${_nameController.text.replaceAll(' ', '').toLowerCase()}_${DateTime.now().millisecondsSinceEpoch}.jpg',
-          );
-        }
-
-        if (_receiptImage != null) {
-          receiptUrl = await _uploadImage(
-            _receiptImage!,
-            'receipt-images',
-            '${branchDetails!['id']}_${_nameController.text.replaceAll(' ', '').toLowerCase()}_receipt_${DateTime.now().millisecondsSinceEpoch}.jpg',
-          );
-        }
-
-        var record = {
-          'branchId': branchDetails!['id'],
-          'name': _nameController.text,
-          'mobile': _mobileController.text,
-          'startDate': _startDateController.text,
-          'endDate': _endDateController.text,
-          'seatType': _seatType,
-          'seatNumber': int.tryParse(_seatNumberController.text),
-          'paymentAmount': double.tryParse(_paymentAmountController.text),
-          'imageUrl': imageUrl,
-          'receiptUrl': receiptUrl,
-        };
-
-        await Supabase.instance.client.from('students').insert(record);
-
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Registration successful!')));
-        Navigator.pop(context, true);
       }
+
+      if (_image != null) {
+        imageUrl = await _uploadImage(
+          _image!,
+          'student-images',
+          '${branchDetails!['id']}_${_nameController.text.replaceAll(' ', '').toLowerCase()}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        );
+      }
+
+      if (_receiptImage != null) {
+        receiptUrl = await _uploadImage(
+          _receiptImage!,
+          'receipt-images',
+          '${branchDetails!['id']}_${_nameController.text.replaceAll(' ', '').toLowerCase()}_receipt_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        );
+      }
+
+      var record = {
+        'branchId': branchDetails!['id'],
+        'name': _nameController.text,
+        'mobile': _mobileController.text,
+        'startDate': _startDateController.text,
+        'endDate': _endDateController.text,
+        'seatType': _seatType,
+        'seatNumber': int.tryParse(_seatNumberController.text),
+        'paymentAmount': double.tryParse(_paymentAmountController.text),
+        'imageUrl': imageUrl,
+        'receiptUrl': receiptUrl,
+      };
+
+      await Supabase.instance.client.from('students').insert(record);
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Registration successful!')));
+      Navigator.pop(context, true);
     }
   }
 
@@ -326,239 +324,257 @@ class _FormPageState extends State<FormPage> {
         backgroundColor: Colors.white,
       ),
       resizeToAvoidBottomInset: true,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              Text(
-                'Branch - ${branchDetails!['name']}',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 10),
-              GestureDetector(
-                onTap: () => _showImageSourceActionSheet(false),
-                child:
-                    _imageUrl != null
-                        ? Image.network(
-                          _imageUrl!,
-                          width: 100,
-                          height: 100,
-                          fit: BoxFit.cover,
-                        )
-                        : _image == null
-                        ? Container(
-                          width: 100,
-                          height: 100,
-                          color: Colors.grey[300],
-                          child: Icon(Icons.camera_alt, color: Colors.white),
-                        )
-                        : Image.file(
-                          _image!,
-                          width: 100,
-                          height: 100,
-                          fit: BoxFit.cover,
-                        ),
-              ),
-              SizedBox(height: 5),
-              TextFormField(
-                controller: _nameController,
-                decoration: InputDecoration(labelText: 'Student Name'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter the student name';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 5),
-              TextFormField(
-                controller: _mobileController,
-                decoration: InputDecoration(labelText: 'Student Mobile'),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter the student mobile number';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 5),
-              Row(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
                 children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _startDateController,
-                      decoration: InputDecoration(labelText: 'Start Date'),
-                      readOnly: true,
-                      onTap: () async {
-                        DateTime? pickedDate = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2101),
-                        );
-                        if (pickedDate != null) {
-                          setState(() {
-                            _startDateController.text =
-                                pickedDate.toLocal().toString().split(' ')[0];
-                          });
-                        }
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please select a start date';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  SizedBox(width: 5),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _endDateController,
-                      decoration: InputDecoration(labelText: 'End Date'),
-                      readOnly: true,
-                      onTap: () async {
-                        DateTime? pickedDate = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2101),
-                        );
-                        if (pickedDate != null) {
-                          setState(() {
-                            _endDateController.text =
-                                pickedDate.toLocal().toString().split(' ')[0];
-                          });
-                        }
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please select an end date';
-                        }
-                        if (_startDateController.text.isNotEmpty &&
-                            DateTime.parse(value).isBefore(
-                              DateTime.parse(_startDateController.text),
-                            )) {
-                          return 'End date cannot be before start date';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 5),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _seatType,
-                      decoration: InputDecoration(labelText: 'Seat Type'),
-                      items:
-                          ['Reserved', 'Unreserved']
-                              .map(
-                                (type) => DropdownMenuItem(
-                                  value: type.toLowerCase(),
-                                  child: Text(type),
-                                ),
-                              )
-                              .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _seatType = value!;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  if (_seatType == 'reserved')
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        decoration: InputDecoration(labelText: 'Seat Number'),
-                        value: _selectedSeatNumber,
-                        menuMaxHeight: 250.0,
-                        items:
-                            availableSeatNumbers
-                                .map(
-                                  (seatNumber) => DropdownMenuItem(
-                                    value: seatNumber,
-                                    child: Text(seatNumber.toString()),
-                                  ),
-                                )
-                                .toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedSeatNumber = value;
-                          });
-                        },
-                        validator: (value) {
-                          if (_seatType == 'reserved' && value == null) {
-                            return 'Please select a seat number';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                ],
-              ),
-              SizedBox(height: 5),
-              TextFormField(
-                controller: _paymentAmountController,
-                decoration: InputDecoration(labelText: 'Payment Amount'),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter the payment amount';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 20),
-              Row(
-                children: [
-                  TextButton(
-                    onPressed: () => _showImageSourceActionSheet(true),
-                    child: Text('Attach Receipt'),
-                    style: TextButton.styleFrom(
-                      backgroundColor: Colors.grey[350],
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 15),
                   Text(
-                    _receiptImage == null
-                        ? 'No Receipt Attached'
-                        : 'Receipt Attached',
-                    style: TextStyle(
-                      color:
-                          _receiptImage == null ? Colors.black54 : Colors.green,
+                    'Branch - ${branchDetails!['name']}',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: () => _showImageSourceActionSheet(false),
+                    child:
+                        _imageUrl != null
+                            ? Image.network(
+                              _imageUrl!,
+                              width: 100,
+                              height: 100,
+                              fit: BoxFit.cover,
+                            )
+                            : _image == null
+                            ? Container(
+                              width: 100,
+                              height: 100,
+                              color: Colors.grey[300],
+                              child: Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                              ),
+                            )
+                            : Image.file(
+                              _image!,
+                              width: 100,
+                              height: 100,
+                              fit: BoxFit.cover,
+                            ),
+                  ),
+                  SizedBox(height: 5),
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: InputDecoration(labelText: 'Student Name'),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter the student name';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: 5),
+                  TextFormField(
+                    controller: _mobileController,
+                    decoration: InputDecoration(labelText: 'Student Mobile'),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter the student mobile number';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _startDateController,
+                          decoration: InputDecoration(labelText: 'Start Date'),
+                          readOnly: true,
+                          onTap: () async {
+                            DateTime? pickedDate = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime.now(),
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2101),
+                            );
+                            if (pickedDate != null) {
+                              setState(() {
+                                _startDateController.text =
+                                    pickedDate.toLocal().toString().split(
+                                      ' ',
+                                    )[0];
+                              });
+                            }
+                          },
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please select a start date';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      SizedBox(width: 5),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _endDateController,
+                          decoration: InputDecoration(labelText: 'End Date'),
+                          readOnly: true,
+                          onTap: () async {
+                            DateTime? pickedDate = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime.now(),
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2101),
+                            );
+                            if (pickedDate != null) {
+                              setState(() {
+                                _endDateController.text =
+                                    pickedDate.toLocal().toString().split(
+                                      ' ',
+                                    )[0];
+                              });
+                            }
+                          },
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please select an end date';
+                            }
+                            if (_startDateController.text.isNotEmpty &&
+                                DateTime.parse(value).isBefore(
+                                  DateTime.parse(_startDateController.text),
+                                )) {
+                              return 'End date cannot be before start date';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _seatType,
+                          decoration: InputDecoration(labelText: 'Seat Type'),
+                          items:
+                              ['Reserved', 'Unreserved']
+                                  .map(
+                                    (type) => DropdownMenuItem(
+                                      value: type.toLowerCase(),
+                                      child: Text(type),
+                                    ),
+                                  )
+                                  .toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _seatType = value!;
+                            });
+                          },
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      if (_seatType == 'reserved')
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            decoration: InputDecoration(
+                              labelText: 'Seat Number',
+                            ),
+                            value: _selectedSeatNumber,
+                            menuMaxHeight: 250.0,
+                            items:
+                                availableSeatNumbers
+                                    .map(
+                                      (seatNumber) => DropdownMenuItem(
+                                        value: seatNumber,
+                                        child: Text(seatNumber.toString()),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedSeatNumber = value;
+                              });
+                            },
+                            validator: (value) {
+                              if (_seatType == 'reserved' && value == null) {
+                                return 'Please select a seat number';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: 5),
+                  TextFormField(
+                    controller: _paymentAmountController,
+                    decoration: InputDecoration(labelText: 'Payment Amount'),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter the payment amount';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: 20),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => _showImageSourceActionSheet(true),
+                        child: Text('Attach Receipt'),
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.grey[350],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 15),
+                      Text(
+                        _receiptImage == null
+                            ? 'No Receipt Attached'
+                            : 'Receipt Attached',
+                        style: TextStyle(
+                          color:
+                              _receiptImage == null
+                                  ? Colors.black54
+                                  : Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 30),
+                  ElevatedButton(
+                    onPressed: () => _submitForm(branchDetails, students),
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 10,
+                      ),
+                      backgroundColor: Colors.lightBlueAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(
+                      'Register Student',
+                      style: TextStyle(color: Colors.black, fontSize: 20),
                     ),
                   ),
                 ],
               ),
-              SizedBox(height: 30),
-              ElevatedButton(
-                onPressed: () => _submitForm(branchDetails, students),
-                style: ElevatedButton.styleFrom(
-                  padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  backgroundColor: Colors.lightBlueAccent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: Text(
-                  'Register Student',
-                  style: TextStyle(color: Colors.black, fontSize: 20),
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
