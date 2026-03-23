@@ -1,7 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="Dnyanjyoti Abhyasika"
+        android:label="dnyanjyoti_abhyasika_app"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
